@@ -1,68 +1,129 @@
-# cdc-pipeline
-A real-time Change Data Capture (CDC) pipeline built using Debezium and Apache Kafka.  
-This project demonstrates how to capture database changes and process them into meaningful business events in a scalable, event-driven architecture.
+# 🚀 EventFlow: Real-Time CDC Notification Pipeline
+
+A production-style **Change Data Capture (CDC)** pipeline that captures database changes and triggers real-time notifications using **Debezium + Apache Kafka**.
 
 ---
 
 ## 🧠 Overview
 
-EventFlow captures changes from a PostgreSQL database using Debezium and streams them through Kafka for real-time processing.
+EventFlow demonstrates how to build an **event-driven system** where database changes automatically trigger downstream actions.
 
-It transforms low-level CDC events into clean, domain-specific events that can be consumed by downstream services like analytics, notifications, or anomaly detection systems.
+Whenever a new user is created in PostgreSQL, the system:
+1. Captures the change using CDC
+2. Streams it through Kafka
+3. Processes the event in a consumer service
+4. Sends a notification email
 
 ---
 
 ## 🏗️ Architecture
 
-PostgreSQL → Debezium → Kafka → Processor Service → Consumers
+```
+INSERT INTO users
+↓
+Debezium captures change (WAL)
+↓
+Kafka topic: cdc.public.users
+↓
+Consumer processes event (op = "c")
+↓
+Email sent to user
+```
+## 🧩 Key Features
 
-- **PostgreSQL**: Source database (WAL-based CDC)
-- **Debezium**: Captures database changes
-- **Kafka**: Event streaming platform
-- **Processor Service**: Transforms raw CDC events into business events
-- **Consumers**: Downstream services (analytics, notifications, etc.)
+- Real-time **CDC pipeline using Debezium**
+- Event-driven architecture using **Apache Kafka**
+- Schema-aware event handling (Debezium envelope parsing)
+- Operation-based filtering (`INSERT`, `UPDATE`, `DELETE`)
+- Automatic **Kafka topic readiness detection**
+- Fault-tolerant consumer with logging and validation
+- Containerized setup using Docker Compose
 
 ---
 
-## 🔧 Tech Stack
+## 🛠️ Tech Stack
 
-- Python / Golang (for services)
-- Apache Kafka
-- Debezium
+- Python (Consumer Service)
+- :contentReference[oaicite:0]{index=0} (KRaft mode)
+- :contentReference[oaicite:1]{index=1}
 - PostgreSQL
 - Docker & Docker Compose
-
+- MailDev (SMTP testing)
 
 ---
 
 ## ⚙️ Setup Instructions
 
-### 1. Start Infrastructure
+### 1. Generate Kafka Cluster ID
 
 ```bash
-docker-compose up -d
+# Kafka in KRaft mode requires a CLUSTER_ID that must be explicitly set
+docker run --rm confluentinc/cp-kafka:7.5.0 kafka-storage random-uuid
+
+# Add this inside Kafka environment in docker-compose.yml
+CLUSTER_ID: "your-generated-id"
 ```
 
-```sql
-CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(255),
-  email VARCHAR(255)
-);
 
-CREATE TABLE orders (
-  id SERIAL PRIMARY KEY,
-  user_id INT,
-  amount INT
-);
+```bash
+docker-compose down -v \
+  && docker volume prune -f \
+  && docker rmi cdc-pipeline-notification \
+  && docker-compose up --build -d
 ```
+
+### Register Debezium Connector
 
 ```bash
 curl -X POST http://localhost:8083/connectors \
--H "Content-Type: application/json" \
--d @connectors/postgres-connector.json
+  -H "Content-Type: application/json" \
+  -d @connectors/postgres-connector.json
+```
+
+## Verify Connector
+
+```bash
+curl http://localhost:8083/connectors
+curl http://localhost:8083/connectors/postgres-connector/status
+```
+
+## Verification Steps
+
+### 1. Insert Data into PostgreSQL
+
+```bash
+docker exec -it cdc-pipeline-postgres psql -U postgres -d inventory
 ```
 
 ```sql
 INSERT INTO users (name, email) VALUES ('Abhinav', 'abhinav@test.com');
+```
+
+### 2. Verify Kafka Topic Creation
+
+```bash
+docker exec -it cdc-pipeline-kafka kafka-topics \
+  --list \
+  --bootstrap-server kafka:9092
+  ```
+
+####  Expected topic:
+
+```bash
+cdc.public.users
+```
+### 3. Check Consumer Logs
+
+```bash
+docker logs -f cdc-pipeline-notification
+
+# expected output
+Received message...
+Email sent to abhinav@test.com
+```
+
+### Verify Email (Maildev)
+
+```bash
+http://localhost:1080
 ```

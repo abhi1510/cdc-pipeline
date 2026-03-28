@@ -1,0 +1,27 @@
+{
+  "name": "postgres-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "postgres",
+    "database.password": "postgres",
+    "database.dbname": "inventory",
+    
+    "database.server.name": "dbserver1",
+    "topic.prefix": "cdc",
+
+    "plugin.name": "pgoutput",
+    
+    "slot.name": "debezium_slot",
+    "publication.name": "dbz_publication",
+    "slot.drop.on.stop": "true",
+
+    "table.include.list": "public.users,public.orders",
+
+    "snapshot.mode": "initial",
+    
+    "tombstones.on.delete": "false"
+  }
+}
