@@ -41,20 +41,9 @@ Email sent to user
 
 ---
 
-## 🛠️ Tech Stack
-
-- Python (Consumer Service)
-- :contentReference[oaicite:0]{index=0} (KRaft mode)
-- :contentReference[oaicite:1]{index=1}
-- PostgreSQL
-- Docker & Docker Compose
-- MailDev (SMTP testing)
-
----
-
 ## ⚙️ Setup Instructions
 
-### 1. Generate Kafka Cluster ID
+### Generate Kafka Cluster ID
 
 ```bash
 # Kafka in KRaft mode requires a CLUSTER_ID that must be explicitly set
@@ -64,27 +53,13 @@ docker run --rm confluentinc/cp-kafka:7.5.0 kafka-storage random-uuid
 CLUSTER_ID: "your-generated-id"
 ```
 
+### Build and Run
 
 ```bash
 docker-compose down -v \
   && docker volume prune -f \
   && docker rmi cdc-pipeline-notification \
   && docker-compose up --build -d
-```
-
-### Register Debezium Connector
-
-```bash
-curl -X POST http://localhost:8083/connectors \
-  -H "Content-Type: application/json" \
-  -d @connectors/postgres-connector.json
-```
-
-## Verify Connector
-
-```bash
-curl http://localhost:8083/connectors
-curl http://localhost:8083/connectors/postgres-connector/status
 ```
 
 ## Verification Steps
@@ -97,6 +72,7 @@ docker exec -it cdc-pipeline-postgres psql -U postgres -d inventory
 
 ```sql
 INSERT INTO users (name, email) VALUES ('Abhinav', 'abhinav@test.com');
+SELECT * FROM users;
 ```
 
 ### 2. Verify Kafka Topic Creation
@@ -105,24 +81,49 @@ INSERT INTO users (name, email) VALUES ('Abhinav', 'abhinav@test.com');
 docker exec -it cdc-pipeline-kafka kafka-topics \
   --list \
   --bootstrap-server kafka:9092
-  ```
+```
 
-####  Expected topic:
-
+#### Expected topics:
 ```bash
+cdc.public.orders
 cdc.public.users
 ```
 ### 3. Check Consumer Logs
 
 ```bash
 docker logs -f cdc-pipeline-notification
-
-# expected output
-Received message...
-Email sent to abhinav@test.com
 ```
 
-### Verify Email (Maildev)
+#### Expected output:
+```bash
+2026-03-28 15:32:25,296 - INFO - Topic cdc.public.users is ready
+2026-03-28 15:32:25,305 - INFO - Starting Kafka consumer...
+2026-03-28 15:32:25,306 - INFO - Subscribed to topic: cdc.public.users
+```
+
+### 4. Verify Connector
+
+```bash
+curl http://localhost:8083/connectors
+curl http://localhost:8083/connectors/postgres-connector/status
+```
+
+#### Expected Output
+```bash
+["postgres-connector"] #first call
+
+{"name":"postgres-connector","connector":{"state":"RUNNING","worker_id":"172.19.0.5:8083"},"tasks":[{"id":0,"state":"RUNNING","worker_id":"172.19.0.5:8083"}],"type":"source"}
+```
+
+#### Register Debezium Connector (manually)
+
+```bash
+curl -X POST http://localhost:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d @connectors/postgres-connector.json
+```
+
+### 5. Verify Email (Maildev)
 
 ```bash
 http://localhost:1080
